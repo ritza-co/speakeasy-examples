@@ -1,6 +1,6 @@
-# Slack Social Media Agent
+# Slack Social Media Agent API
 
-A simple FastAPI server that converts Slack threads into social media posts using Gram AI and OpenAI.
+A simple FastAPI server to help agents converts Slack threads into social media posts using Gram AI and OpenAI.
 
 ## How It Works
 
@@ -30,6 +30,7 @@ Required variables:
 - `SLACK_USER_TOKEN`: Your Slack bot token (starts with `xoxp-`)
 - `GRAM_AI_API_KEY`: Your Gram AI API key
 - `OPENAI_API_KEY`: Your OpenAI API key (starts with `sk-`)
+- `POSTIZ_MCP_URL`: Your Postiz MCP URL
 
 ### 3. Run the Server
 
