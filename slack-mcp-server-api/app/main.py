@@ -1,14 +1,15 @@
-from fastapi import FastAPI, HTTPException, Depends, Query, Path
+from fastapi import FastAPI, HTTPException, Depends, Query, Path, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.openapi.utils import get_openapi
-from typing import Optional, List, Dict, Any
+from fastapi.responses import PlainTextResponse, JSONResponse
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 from datetime import datetime
-import os
 from dotenv import load_dotenv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-import logging
+import asyncio
+import os
 
 load_dotenv()
 
@@ -94,6 +95,29 @@ class ThreadResponse(BaseModel):
     reply_count: int = Field(..., description="Total number of replies")
 
 
+# Slack Events API models
+class SlackUrlVerificationEvent(BaseModel):
+    """Model for Slack URL verification event"""
+    
+    token: str = Field(..., description="Verification token")
+    challenge: str = Field(..., description="Challenge string to echo back")
+    type: str = Field(..., description="Event type - should be 'url_verification'")
+
+
+class SlackEventWrapper(BaseModel):
+    """Model for general Slack event payload"""
+    
+    token: Optional[str] = Field(None, description="Verification token")
+    challenge: Optional[str] = Field(None, description="Challenge for url_verification")
+    type: str = Field(..., description="Event type")
+    team_id: Optional[str] = Field(None, description="Team ID")
+    api_app_id: Optional[str] = Field(None, description="App ID")
+    event: Optional[Dict[str, Any]] = Field(None, description="Inner event data")
+    event_context: Optional[str] = Field(None, description="Event context")
+    event_id: Optional[str] = Field(None, description="Event ID")
+    event_time: Optional[int] = Field(None, description="Event timestamp")
+
+
 # Dependency to get authenticated Slack client
 async def get_slack_client(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -112,7 +136,6 @@ async def get_slack_client(
     """
     try:
         client = WebClient(token=credentials.credentials)
-        # Test the token
         response = client.auth_test()
         if not response["ok"]:
             raise HTTPException(status_code=401, detail="Invalid Slack token")
@@ -474,6 +497,79 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
+@app.post("/events", include_in_schema=False)
+async def handle_slack_events(request: Request):
+    """
+    Handle Slack Events API requests.
+    
+    This endpoint processes various Slack events, starting with url_verification.
+    It's excluded from OpenAPI documentation as it's internal to Slack integration.
+    """
+    try:
+        # Parse the request body
+        body = await request.json()
+                
+        # Handle url_verification event
+        if body.get("type") == "url_verification":
+            # Validate the event structure
+            verification_event = SlackUrlVerificationEvent(**body)
+            
+            # Respond with the challenge value in plain text
+            return PlainTextResponse(
+                content=verification_event.challenge,
+                status_code=200,
+                headers={"Content-Type": "text/plain"}
+            )
+        
+        # Handle event callbacks
+        elif body.get("type") == "event_callback":
+            # Parse the full event wrapper
+            event_wrapper = SlackEventWrapper(**body)
+            event = event_wrapper.event or {}
+            
+            # Handle rocket emoji reactions for social media posts
+            if (event.get("type") == "reaction_added" and 
+                event.get("reaction") == "rocket" and
+                event.get("item", {}).get("type") == "message"):
+                
+                channel_id = event["item"]["channel"]
+                message_ts = event["item"]["ts"]
+                
+                print(f"Rocket reaction: {channel_id}/{message_ts}")
+                asyncio.create_task(
+                    process_social_media_workflow(channel_id, message_ts)
+                )
+            
+            return JSONResponse(
+                content={"status": "ok"},
+                status_code=200
+            )
+        
+        # Unknown event type
+        else:
+            return JSONResponse(
+                content={"error": "Unknown event type"},
+                status_code=400
+            )
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(
+            content={"status": "error", "message": str(e)},
+            status_code=200
+        )
+
+
+async def process_social_media_workflow(channel_id: str, message_ts: str):
+    """Process rocket reaction for social media content generation"""
+    try:
+        from app.social_agent import create_social_media_posts
+        result = await create_social_media_posts(channel_id, message_ts)
+        print(result)
+    except Exception as e:
+        print(f"Error: {e}")
+
+
 def custom_openapi():
     """Customize OpenAPI Output with x-gram extensions for getgram MCP servers"""
 
@@ -606,14 +702,6 @@ def custom_openapi():
                     operation_id = operation.get("operationId")
                     if operation_id in x_gram_extensions:
                         operation.update(x_gram_extensions[operation_id])
-
-    # Add global x-gram information
-    openapi_schema["x-gram-info"] = {
-        "name": "Slack MCP Server",
-        "description": "A comprehensive API for searching and retrieving Slack messages, threads, and user information",
-        "version": "1.0.0",
-        "base_url": "http://localhost:8000",
-    }
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema

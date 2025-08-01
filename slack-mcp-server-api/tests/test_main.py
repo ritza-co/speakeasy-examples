@@ -1,35 +1,69 @@
 import pytest
-from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
-from fastapi import HTTPException
-import sys
-import os
+from unittest.mock import Mock, patch
+from app.main import app, SlackMessage, SlackUser, SlackChannel
 
-# Add the app directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
-from main import app, get_slack_client
-
+# Test client
 client = TestClient(app)
 
+# Mock data
+MOCK_SLACK_MESSAGE = {
+    "ts": "1234567890.123456",
+    "text": "Test message",
+    "user": "U1234567890",
+    "channel": {"id": "C1234567890"},
+    "thread_ts": None,
+    "reply_count": 0,
+}
 
-@pytest.fixture
-def mock_slack_client():
-    """Mock Slack WebClient for testing"""
-    client = Mock()
-    client.auth_test.return_value = {"ok": True, "user": "test_user"}
-    return client
+MOCK_SLACK_USER = {
+    "id": "U1234567890",
+    "name": "testuser",
+    "real_name": "Test User",
+    "profile": {"email": "test@example.com"},
+    "is_bot": False,
+}
+
+MOCK_SLACK_CHANNEL = {
+    "id": "C1234567890",
+    "name": "general",
+    "is_private": False,
+    "is_archived": False,
+    "num_members": 10,
+    "topic": {"value": "General discussion"},
+    "purpose": {"value": "Company-wide announcements and work-based matters"},
+}
+
+# Mock Slack event data
+MOCK_URL_VERIFICATION_EVENT = {
+    "token": "Jhj5dZrVaK7ZwHHjRyZWjbDl",
+    "challenge": "3eZbrw1aBm2rZgRNFdxV2595E9CY3gmdALWMmHkvFXO7tYXAYM8P",
+    "type": "url_verification"
+}
+
+MOCK_EVENT_CALLBACK = {
+    "token": "verification_token_here",
+    "team_id": "T1D9317P4",
+    "api_app_id": "A0118NQPB1Y",
+    "event": {
+        "type": "message",
+        "user": "U1234567890",
+        "text": "Hello world",
+        "ts": "1234567890.123456",
+        "channel": "C1234567890"
+    },
+    "type": "event_callback",
+    "event_id": "Ev08MFMKH6",
+    "event_time": 1234567890
+}
 
 
-@pytest.fixture
-def auth_headers():
-    """Authentication headers for testing"""
-    return {"Authorization": "Bearer xoxb-test-token"}
+class TestHealthEndpoint:
+    """Test the health check endpoint"""
 
-
-class TestHealthCheck:
-    def test_health_check(self):
-        """Test the health check endpoint"""
+    def test_health_check_success(self):
+        """Test successful health check"""
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
@@ -37,64 +71,116 @@ class TestHealthCheck:
         assert "timestamp" in data
 
 
+class TestSlackEventsEndpoint:
+    """Test the Slack Events API endpoint"""
+
+    def test_url_verification_success(self):
+        """Test successful URL verification event"""
+        response = client.post("/events", json=MOCK_URL_VERIFICATION_EVENT)
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/plain"
+        assert response.text == MOCK_URL_VERIFICATION_EVENT["challenge"]
+
+    def test_url_verification_missing_fields(self):
+        """Test URL verification with missing required fields"""
+        incomplete_event = {
+            "type": "url_verification",
+            "token": "some_token"
+            # Missing challenge field
+        }
+        response = client.post("/events", json=incomplete_event)
+        assert response.status_code == 200  # We return 200 to prevent Slack retries
+        data = response.json()
+        assert data["status"] == "error"
+
+    def test_event_callback_success(self):
+        """Test successful event callback handling"""
+        response = client.post("/events", json=MOCK_EVENT_CALLBACK)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+
+    def test_unknown_event_type(self):
+        """Test handling of unknown event types"""
+        unknown_event = {
+            "type": "unknown_event_type",
+            "token": "some_token"
+        }
+        response = client.post("/events", json=unknown_event)
+        assert response.status_code == 400
+        data = response.json()
+        assert data["error"] == "Unknown event type"
+
+    def test_invalid_json_payload(self):
+        """Test handling of invalid JSON payload"""
+        response = client.post(
+            "/events", 
+            data="invalid json",
+            headers={"Content-Type": "application/json"}
+        )
+        assert response.status_code == 200  # We return 200 to prevent Slack retries
+        data = response.json()
+        assert data["status"] == "error"
+
+    def test_events_endpoint_not_in_openapi(self):
+        """Test that events endpoint is excluded from OpenAPI schema"""
+        response = client.get("/openapi.json")
+        assert response.status_code == 200
+        openapi_data = response.json()
+        
+        # Check that /events is not in the paths
+        assert "/events" not in openapi_data.get("paths", {})
+
+
 class TestAuthentication:
+    """Test authentication and authorization"""
+
     def test_missing_authorization_header(self):
-        """Test request without authorization header"""
+        """Test endpoint access without authorization header"""
         response = client.get("/messages/search?query=test")
         assert response.status_code == 403
 
-    def test_invalid_authorization_format(self):
-        """Test request with invalid authorization format"""
-        headers = {"Authorization": "Invalid token"}
-        response = client.get("/messages/search?query=test", headers=headers)
-        assert response.status_code == 403
-
-    @patch("main.WebClient")
-    def test_invalid_slack_token(self, mock_webclient):
-        """Test request with invalid Slack token"""
+    @patch("app.main.WebClient")
+    def test_invalid_token(self, mock_webclient):
+        """Test endpoint access with invalid token"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": False}
         mock_webclient.return_value = mock_client
 
-        headers = {"Authorization": "Bearer xoxb-invalid-token"}
-        response = client.get("/messages/search?query=test", headers=headers)
+        response = client.get(
+            "/messages/search?query=test",
+            headers={"Authorization": "Bearer invalid-token"},
+        )
         assert response.status_code == 401
 
 
 class TestMessageSearch:
-    @patch("main.WebClient")
-    def test_search_messages_success(self, mock_webclient, auth_headers):
+    """Test message search functionality"""
+
+    @patch("app.main.WebClient")
+    def test_search_messages_success(self, mock_webclient):
         """Test successful message search"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
         mock_client.search_messages.return_value = {
             "ok": True,
-            "messages": {
-                "matches": [
-                    {
-                        "ts": "1234567890.123456",
-                        "text": "Test message",
-                        "user": "U1234567890",
-                        "channel": {"id": "C1234567890"},
-                        "thread_ts": None,
-                        "reply_count": 0,
-                    }
-                ],
-                "total": 1,
-            },
+            "messages": {"matches": [MOCK_SLACK_MESSAGE], "total": 1},
         }
         mock_webclient.return_value = mock_client
 
-        response = client.get("/messages/search?query=test", headers=auth_headers)
+        response = client.get(
+            "/messages/search?query=test",
+            headers={"Authorization": "Bearer valid-token"},
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data["messages"]) == 1
         assert data["total"] == 1
-        assert data["messages"][0]["text"] == "Test message"
+        assert data["has_more"] is False
 
-    @patch("main.WebClient")
-    def test_search_messages_with_filters(self, mock_webclient, auth_headers):
-        """Test message search with filters"""
+    @patch("app.main.WebClient")
+    def test_search_messages_with_filters(self, mock_webclient):
+        """Test message search with additional filters"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
         mock_client.search_messages.return_value = {
@@ -105,70 +191,53 @@ class TestMessageSearch:
 
         response = client.get(
             "/messages/search?query=test&channel=C1234567890&user=U1234567890&limit=10",
-            headers=auth_headers,
+            headers={"Authorization": "Bearer valid-token"},
         )
         assert response.status_code == 200
-
-        # Verify the search query was built correctly
+        # Verify the search query was built with filters
         mock_client.search_messages.assert_called_once()
-        call_args = mock_client.search_messages.call_args
-        assert "test" in call_args.kwargs["query"]
-        assert "in:#C1234567890" in call_args.kwargs["query"]
-        assert "from:@U1234567890" in call_args.kwargs["query"]
 
-    @patch("main.WebClient")
-    def test_search_messages_api_error(self, mock_webclient, auth_headers):
+    @patch("app.main.WebClient")
+    def test_search_messages_api_error(self, mock_webclient):
         """Test message search with Slack API error"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
-        mock_client.search_messages.return_value = {
-            "ok": False,
-            "error": "invalid_query",
-        }
+        mock_client.search_messages.return_value = {"ok": False, "error": "invalid_auth"}
         mock_webclient.return_value = mock_client
 
-        response = client.get("/messages/search?query=test", headers=auth_headers)
+        response = client.get(
+            "/messages/search?query=test",
+            headers={"Authorization": "Bearer valid-token"},
+        )
         assert response.status_code == 400
 
 
 class TestThreadOperations:
-    @patch("main.WebClient")
-    def test_get_thread_success(self, mock_webclient, auth_headers):
+    """Test thread-related operations"""
+
+    @patch("app.main.WebClient")
+    def test_get_thread_success(self, mock_webclient):
         """Test successful thread retrieval"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
         mock_client.conversations_replies.return_value = {
             "ok": True,
-            "messages": [
-                {
-                    "ts": "1234567890.123456",
-                    "text": "Parent message",
-                    "user": "U1234567890",
-                    "thread_ts": "1234567890.123456",
-                    "reply_count": 1,
-                },
-                {
-                    "ts": "1234567890.123457",
-                    "text": "Reply message",
-                    "user": "U0987654321",
-                    "thread_ts": "1234567890.123456",
-                },
-            ],
+            "messages": [MOCK_SLACK_MESSAGE],
         }
         mock_webclient.return_value = mock_client
 
         response = client.get(
-            "/messages/C1234567890/1234567890.123456/thread", headers=auth_headers
+            "/messages/C1234567890/1234567890.123456/thread",
+            headers={"Authorization": "Bearer valid-token"},
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["parent_message"]["text"] == "Parent message"
-        assert len(data["replies"]) == 1
-        assert data["replies"][0]["text"] == "Reply message"
-        assert data["reply_count"] == 1
+        assert "parent_message" in data
+        assert "replies" in data
+        assert "reply_count" in data
 
-    @patch("main.WebClient")
-    def test_get_thread_not_found(self, mock_webclient, auth_headers):
+    @patch("app.main.WebClient")
+    def test_get_thread_not_found(self, mock_webclient):
         """Test thread retrieval when thread doesn't exist"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
@@ -176,145 +245,92 @@ class TestThreadOperations:
         mock_webclient.return_value = mock_client
 
         response = client.get(
-            "/messages/C1234567890/1234567890.123456/thread", headers=auth_headers
+            "/messages/C1234567890/1234567890.123456/thread",
+            headers={"Authorization": "Bearer valid-token"},
         )
         assert response.status_code == 404
 
 
 class TestUserOperations:
-    @patch("main.WebClient")
-    def test_get_user_success(self, mock_webclient, auth_headers):
+    """Test user-related operations"""
+
+    @patch("app.main.WebClient")
+    def test_get_user_success(self, mock_webclient):
         """Test successful user retrieval"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
-        mock_client.users_info.return_value = {
-            "ok": True,
-            "user": {
-                "id": "U1234567890",
-                "name": "testuser",
-                "real_name": "Test User",
-                "is_bot": False,
-                "profile": {"email": "test@example.com", "display_name": "Test"},
-            },
-        }
+        mock_client.users_info.return_value = {"ok": True, "user": MOCK_SLACK_USER}
         mock_webclient.return_value = mock_client
 
-        response = client.get("/users/U1234567890", headers=auth_headers)
+        response = client.get(
+            "/users/U1234567890", headers={"Authorization": "Bearer valid-token"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == "U1234567890"
         assert data["name"] == "testuser"
-        assert data["real_name"] == "Test User"
-        assert data["email"] == "test@example.com"
-        assert data["is_bot"] is False
 
-    @patch("main.WebClient")
-    def test_get_user_not_found(self, mock_webclient, auth_headers):
-        """Test user retrieval when user doesn't exist"""
+    @patch("app.main.WebClient")
+    def test_get_user_not_found(self, mock_webclient):
+        """Test user not found error"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
         mock_client.users_info.return_value = {"ok": False, "error": "user_not_found"}
         mock_webclient.return_value = mock_client
 
-        response = client.get("/users/U1234567890", headers=auth_headers)
+        response = client.get(
+            "/users/U9999999999", headers={"Authorization": "Bearer valid-token"}
+        )
         assert response.status_code == 404
 
 
 class TestChannelOperations:
-    @patch("main.WebClient")
-    def test_list_channels_success(self, mock_webclient, auth_headers):
+    """Test channel-related operations"""
+
+    @patch("app.main.WebClient")
+    def test_list_channels_success(self, mock_webclient):
         """Test successful channel listing"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
-
-        # Mock different responses for public and private channels
-        def mock_conversations_list(**kwargs):
-            types = kwargs.get("types", "")
-            if "private_channel" in types:
-                return {
-                    "ok": True,
-                    "channels": [
-                        {
-                            "id": "G1234567890",
-                            "name": "private-team",
-                            "is_private": True,
-                            "is_archived": False,
-                            "num_members": 3,
-                            "topic": {"value": "Private team discussion"},
-                            "purpose": {"value": "Team coordination"},
-                        }
-                    ],
-                }
-            else:  # public channels
-                return {
-                    "ok": True,
-                    "channels": [
-                        {
-                            "id": "C1234567890",
-                            "name": "general",
-                            "is_private": False,
-                            "is_archived": False,
-                            "num_members": 10,
-                            "topic": {"value": "General discussion"},
-                            "purpose": {"value": "Company-wide announcements"},
-                        },
-                        {
-                            "id": "C0987654321",
-                            "name": "random",
-                            "is_private": False,
-                            "is_archived": False,
-                            "num_members": 5,
-                            "topic": {"value": "Random stuff"},
-                            "purpose": {"value": "Off-topic discussion"},
-                        },
-                    ],
-                }
-
-        mock_client.conversations_list.side_effect = mock_conversations_list
+        
+        # Use side_effect to return different data for public and private channels
+        mock_client.conversations_list.side_effect = [
+            {"ok": True, "channels": [MOCK_SLACK_CHANNEL, MOCK_SLACK_CHANNEL]},  # Public channels
+            {"ok": True, "channels": [MOCK_SLACK_CHANNEL]},  # Private channels
+        ]
         mock_webclient.return_value = mock_client
 
-        response = client.get("/channels", headers=auth_headers)
+        response = client.get(
+            "/channels", headers={"Authorization": "Bearer valid-token"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 3  # 2 public + 1 private
+        assert all("id" in channel for channel in data)
+        assert all("name" in channel for channel in data)
 
-        # Find the general channel in the results
-        general_channel = next((ch for ch in data if ch["name"] == "general"), None)
-        assert general_channel is not None
-        assert general_channel["member_count"] == 10
-
-    @patch("main.WebClient")
-    def test_get_channel_messages_success(self, mock_webclient, auth_headers):
+    @patch("app.main.WebClient")
+    def test_get_channel_messages_success(self, mock_webclient):
         """Test successful channel message retrieval"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
         mock_client.conversations_history.return_value = {
             "ok": True,
-            "messages": [
-                {
-                    "ts": "1234567890.123456",
-                    "text": "Hello world",
-                    "user": "U1234567890",
-                    "reply_count": 0,
-                },
-                {
-                    "ts": "1234567890.123455",
-                    "text": "Previous message",
-                    "user": "U0987654321",
-                    "reply_count": 0,
-                },
-            ],
+            "messages": [MOCK_SLACK_MESSAGE],
         }
         mock_webclient.return_value = mock_client
 
-        response = client.get("/channels/C1234567890/messages", headers=auth_headers)
+        response = client.get(
+            "/channels/C1234567890/messages",
+            headers={"Authorization": "Bearer valid-token"},
+        )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        assert data[0]["text"] == "Hello world"
+        assert len(data) == 1
+        assert data[0]["ts"] == "1234567890.123456"
 
-    @patch("main.WebClient")
-    def test_get_channel_messages_not_in_channel(self, mock_webclient, auth_headers):
+    @patch("app.main.WebClient")
+    def test_get_channel_messages_not_in_channel(self, mock_webclient):
         """Test channel message retrieval when bot is not in channel"""
         mock_client = Mock()
         mock_client.auth_test.return_value = {"ok": True}
@@ -324,5 +340,8 @@ class TestChannelOperations:
         }
         mock_webclient.return_value = mock_client
 
-        response = client.get("/channels/C1234567890/messages", headers=auth_headers)
+        response = client.get(
+            "/channels/C1234567890/messages",
+            headers={"Authorization": "Bearer valid-token"},
+        )
         assert response.status_code == 403

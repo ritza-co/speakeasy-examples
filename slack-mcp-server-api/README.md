@@ -1,170 +1,70 @@
-# Slack MCP Server API
+# Slack Social Media Agent
 
-A comprehensive FastAPI application for searching and retrieving Slack messages, threads, and user information. This API is designed to work with MCP (Model Context Protocol) servers with optimized OpenAPI documentation for [Gram](https://getgram.ai) integration.
+A simple FastAPI server that converts Slack threads into social media posts using Gram AI and OpenAI.
 
-## Prerequisites
+## How It Works
 
-- Python 3.11+
-- FastAPI 0.115.5
-- Slack SDK 3.29.0+
+1. **React with 🚀**: Add a rocket emoji reaction to any Slack message
+2. **AI Analysis**: The agent uses Gram AI to retrieve and analyze the thread
+3. **Content Generation**: OpenAI generates engaging social media posts (Twitter format)
+4. **Background Processing**: Everything happens asynchronously without blocking Slack
 
-## Installation
+## Quick Start
 
-1. **Clone the repository**:
-
-   ```bash
-   git clone https://github.com/speakeasy/speakeasy-examples.git
-   cd speakeasy-examples/slack-mcp-server
-   ```
-
-2. **Create a virtual environment**:
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Slack App Setup
-
-1. **Create a Slack App** at <https://api.slack.com/apps>
-2. **Add Bot Token Scopes**:
-   - `channels:history`
-   - `channels:read`
-   - `search:read`
-   - `users:read`
-   - `groups:history` (for private channels)
-
-3. **Install the app** to your workspace
-4. **Copy the Bot User OAuth Token** (starts with `xoxb-`)
-
-## Running the Server
-
-### Development
+### 1. Install Dependencies
 
 ```bash
-cd app
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uv sync
 ```
 
-### Production
+### 2. Set Up Environment Variables
+
+Copy `.env.example` to `.env` and fill in your keys:
 
 ```bash
-cd app
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+cp .env.example .env
 ```
 
-The API will be available at `http://localhost:8000`
+Required variables:
 
-Interactive API documentation: `http://localhost:8000/docs`
+- `SLACK_USER_TOKEN`: Your Slack bot token (starts with `xoxp-`)
+- `GRAM_AI_API_KEY`: Your Gram AI API key
+- `OPENAI_API_KEY`: Your OpenAI API key (starts with `sk-`)
 
-## Generate OpenAPI Files
-
-### Using Python Script (Recommended)
-
-To generate OpenAPI JSON and YAML files directly from the FastAPI app:
+### 3. Run the Server
 
 ```bash
-source venv/bin/activate
-python generate_openapi.py
+uv run uvicorn app.main:app --reload
 ```
-
-### Using Shell Script (Alternative)
-
-Alternatively, you can use the shell script approach:
-
-```bash
-./gen.sh
-```
-
-Both methods will create:
-
-- `openapi.json` - OpenAPI specification in JSON format with x-gram extensions
-- `openapi.yaml` - OpenAPI specification in YAML format with x-gram extensions
-
-The Python script approach is faster and more reliable as it doesn't require starting a server.
 
 ## API Endpoints
 
-### Authentication
+- **POST /events**: Slack Events API webhook (handles reactions)
+- **GET /health**: Health check endpoint
+- **GET /search**: Search Slack messages
+- **GET /threads/{channel_id}/{message_ts}**: Get thread details
+- **GET /users/{user_id}**: Get user information
+- **GET /channels**: List Slack channels
 
-All endpoints require a Bearer token in the Authorization header:
+## Social Media Agent
 
-```
-Authorization: Bearer xoxb-your-slack-bot-token
-```
+The agent analyzes Slack threads and when valuable content is found, it generates:
 
-### Message Search
+- 1-3 Twitter posts (max 280 characters each)
+- Relevant hashtags
+- Professional, engaging tone
 
-**GET** `/messages/search`
+## Files
 
-Search for messages across Slack channels with advanced filtering options.
+- `app/main.py`: FastAPI server with Slack webhook handling
+- `app/social_agent.py`: Simple Gram AI integration for content generation
+- `test_workflow.py`: Test script to verify the complete workflow
 
-**Parameters**:
+## Usage
 
-- `query` (required): Search query text
-- `channel` (optional): Specific channel ID to search in
-- `user` (optional): Filter by user ID
-- `after` (optional): Search messages after this date
-- `before` (optional): Search messages before this date
-- `limit` (optional): Maximum number of results (1-100, default: 20)
+1. Set up your Slack bot with Events API subscriptions for `reaction_added`
+2. Point your Slack webhook URL to `https://your-domain.com/events`. You can use ngrok to interface your API to the Internet.
+3. Add a 🚀 reaction to any Slack message
+4. Check server logs for generated social media posts
 
-**Example**:
-
-```bash
-curl -H "Authorization: Bearer xoxb-your-token" \
-  "http://localhost:8000/messages/search?query=important+meeting&limit=10"
-```
-
-### Thread Operations
-
-**GET** `/messages/{channel_id}/{message_ts}/thread`
-
-Retrieve a complete message thread including parent message and all replies.
-
-**Example**:
-
-```bash
-curl -H "Authorization: Bearer xoxb-your-token" \
-  "http://localhost:8000/messages/C1234567890/1234567890.123456/thread"
-```
-
-### User Information
-
-**GET** `/users/{user_id}`
-
-Get detailed information about a Slack user.
-
-**Example**:
-
-```bash
-curl -H "Authorization: Bearer xoxb-your-token" \
-  "http://localhost:8000/users/U1234567890"
-```
-
-### Channel Operations
-
-**GET** `/channels`
-
-List all accessible Slack channels.
-
-**Parameters**:
-
-- `include_private` (optional): Include private channels (default: true)
-- `include_archived` (optional): Include archived channels (default: false)
-- `limit` (optional): Maximum channels to return (1-1000, default: 100)
-
-**GET** `/channels/{channel_id}/messages`
-
-Retrieve messages from a specific channel.
-
-**Parameters**:
-
-- `latest` (optional): Latest message timestamp to include
-- `oldest` (optional): Oldest message timestamp to include
-- `limit` (optional): Maximum messages to return (1-1000, default: 50)
+The system is designed to be minimal and focused - just react with 🚀 and get social media content!
