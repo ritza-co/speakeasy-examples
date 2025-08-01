@@ -19,7 +19,7 @@ async def create_social_media_posts(channel_id: str, message_ts: str):
         name="Assistant",
         tools=gram.tools(
             project="default", 
-            toolset="rare-and-common-dogs",
+            toolset="slack-tools",
             environment="slack",
         ),
         mcp_servers=[postiz_mcp_server]

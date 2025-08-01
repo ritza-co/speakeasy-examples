@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import asyncio
-import os
 
 load_dotenv()
 
