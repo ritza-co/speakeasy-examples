@@ -5,7 +5,7 @@ This FastAPI server provides a basic Google Sheets integration for MCP (Model Co
 ## Features
 
 - **List spreadsheets:** Get all accessible Google Sheets spreadsheets.
-- **Spreadsheet details:** View spreadsheet structure and sheet information .
+- **Spreadsheet details:** View spreadsheet structure and sheet information.
 - **Read sheet data:** Extract data from specific sheets with header support.
 - **MCP integration:** The API is optimized for use with Gram.
 
@@ -14,8 +14,8 @@ This FastAPI server provides a basic Google Sheets integration for MCP (Model Co
 ### Prerequisites
 
 - Python 3.13+
-- Google Cloud Service Account with Sheets and Drive API access
-- Service account JSON key file
+- A Google Cloud service account with Sheets and Drive API access
+- A service account JSON key file
 
 ### 
 
@@ -38,13 +38,13 @@ cd examples/google-sheet-mcp-server-api
 
 ### Installation
 
-1. Install dependencies using uv:
+1. Install the dependencies using uv:
 
 ```bash
 uv sync
 ```
 
-2. Open the `app.py` file and replace the value of `SERVICE_ACCOUNT_FILE` with the path to the JSON service account file. For a reference on how to generate the service account file, refer to this [Google Sheets quickstart for Claude](https://www.speakeasy.com/mcp/using-mcp/google-sheet-claude-quickstart)
+2. Open the `app.py` file and replace the value of `SERVICE_ACCOUNT_FILE` with the path to the JSON service account file. For a reference on how to generate the service account file, refer to this [Google Sheets quickstart for Claude](https://www.speakeasy.com/mcp/using-mcp/google-sheet-claude-quickstart).
 
 
 3. Run the server:
