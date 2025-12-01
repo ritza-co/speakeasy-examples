@@ -9,7 +9,7 @@ dotenv.config({ path: resolve(process.cwd(), ".env.local") });
  */
 export const gramMcpClient = new MCPClient({
   servers: {
-    CanIPushToProd: {
+    PushAdvisor: {
       url: new URL("https://app.getgram.ai/mcp/your-mcp-server-slug"),
       requestInit: {
         headers: {

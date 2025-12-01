@@ -15,7 +15,7 @@ const processStep = createStep({
   execute: async ({ inputData }) => {
     const agent = await getMcpAgent();
     const result = await agent.streamLegacy(
-      `Is it a good day to push today? Use the CanIPushToProd MCP server tools to check if today is a good day to push to production.`
+      `Is it a good day to push today? Use the PushAdvisor MCP server tools to check if today is a good day to push to production.`
     );
     
     let text = "";
@@ -38,4 +38,5 @@ export const mcpWorkflow = createWorkflow({
   }),
   mastra,
 }).then(processStep).commit();
+
 
