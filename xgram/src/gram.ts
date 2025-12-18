@@ -57,6 +57,8 @@ server.registerResource(
   }
 );
 
+export { server };
+
 // Wrap with Gram Functions
 export default withGram(server, {
   variables: {
