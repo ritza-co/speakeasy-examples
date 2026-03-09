@@ -1,0 +1,25 @@
+{
+  "name": "mcp-stock-viewer",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build:ui": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:ui && npm run build:server",
+    "start": "node dist/server/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.2.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.0",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}
