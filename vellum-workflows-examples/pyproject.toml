@@ -1,0 +1,13 @@
+[project]
+name = "vellum-workflows-sdk"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "vellum-ai>=1.11.7",
+]
+
+[tool.vellum]
+# Vellum CLI configuration
+# API key is read from VELLUM_API_KEY environment variable
