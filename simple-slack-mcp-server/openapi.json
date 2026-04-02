@@ -1,0 +1,861 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Slack MCP Server API",
+    "description": "A comprehensive API for searching and retrieving Slack messages, threads, and user information",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/messages/search": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Search Slack messages",
+        "description": "Search for messages across Slack channels using various filters.\n    Supports text search, user filtering, date ranges, and channel-specific searches.\n    Requires a valid Slack bot token with search:read scope.",
+        "operationId": "search_messages",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Search query text",
+              "examples": [
+                "important meeting"
+              ],
+              "title": "Query"
+            },
+            "description": "Search query text"
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Specific channel ID to search in",
+              "examples": [
+                "C1234567890"
+              ],
+              "title": "Channel"
+            },
+            "description": "Specific channel ID to search in"
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by user ID",
+              "examples": [
+                "U1234567890"
+              ],
+              "title": "User"
+            },
+            "description": "Filter by user ID"
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search messages after this date",
+              "title": "After"
+            },
+            "description": "Search messages after this date"
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search messages before this date",
+              "title": "Before"
+            },
+            "description": "Search messages before this date"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of results to return",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Maximum number of results to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results with matching messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSearchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed - invalid token"
+          },
+          "403": {
+            "description": "Insufficient permissions"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-gram": {
+          "name": "search_slack_messages",
+          "summary": "Search for messages in Slack channels",
+          "description": "<context>\n                This tool searches for messages across Slack channels with comprehensive filtering options.\n                It can search by text content, specific users, date ranges, and within specific channels.\n                Perfect for finding important conversations, tracking mentions, or analyzing communication patterns.\n                </context>\n\n                <prerequisites>\n                - If you have a channel name instead of ID, use the list_channels tool first to get the channel ID\n                - If you have a username instead of user ID, use the get_user tool first to get the user ID  \n                - Ensure the bot has appropriate permissions to search the target channels\n                </prerequisites>",
+          "responseFilterType": "jq"
+        }
+      }
+    },
+    "/messages/{channel_id}/{message_ts}/thread": {
+      "get": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Get message thread",
+        "description": "Retrieve a complete thread including the parent message and all replies.\n    Useful for getting conversation context around a specific message.\n    Requires a valid Slack bot token with channels:history scope and access to the channel.",
+        "operationId": "get_thread",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Channel ID containing the message",
+              "title": "Channel Id"
+            },
+            "description": "Channel ID containing the message"
+          },
+          {
+            "name": "message_ts",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timestamp of the parent message",
+              "title": "Message Ts"
+            },
+            "description": "Timestamp of the parent message"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread information with parent message and replies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed"
+          },
+          "404": {
+            "description": "Message or thread not found"
+          },
+          "403": {
+            "description": "Access denied to channel"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-gram": {
+          "name": "get_slack_thread",
+          "summary": "Retrieve complete message thread with replies",
+          "description": "<context>\n                This tool fetches an entire conversation thread, including the original message\n                and all replies. Essential for understanding the full context of discussions\n                and following conversation flows in Slack.\n                </context>\n\n                <prerequisites>\n                - You need both the channel ID and the timestamp of the parent message\n                - The message timestamp should be the thread_ts value from search results\n                - Ensure the bot has access to the channel containing the thread\n                </prerequisites>",
+          "responseFilterType": "jq"
+        }
+      }
+    },
+    "/users/{user_id}": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Get user information",
+        "description": "Retrieve detailed information about a Slack user including profile details, \n    real name, and other metadata. Requires a valid Slack bot token with users:read scope.",
+        "operationId": "get_user",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Slack user ID",
+              "examples": [
+                "U1234567890"
+              ],
+              "title": "User Id"
+            },
+            "description": "Slack user ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackUser"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed"
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-gram": {
+          "name": "get_slack_user",
+          "summary": "Get detailed information about a Slack user",
+          "description": "<context>\n                This tool retrieves comprehensive user information from Slack, including\n                profile details, contact information, and user status. Perfect for understanding\n                message authorship and getting user context.\n                </context>\n\n                <prerequisites>\n                - You need the user ID (starts with U) not the username\n                - If you only have a username or display name, search for it first\n                - User information availability depends on workspace privacy settings\n                </prerequisites>",
+          "responseFilterType": "jq"
+        }
+      }
+    },
+    "/channels": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "summary": "List channels",
+        "description": "List all channels accessible to the bot, including public channels,\n    private channels the bot is a member of, and optionally archived channels.\n    Requires a valid Slack bot token with channels:read scope.",
+        "operationId": "list_channels",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "include_private",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include private channels",
+              "default": true,
+              "title": "Include Private"
+            },
+            "description": "Include private channels"
+          },
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include archived channels",
+              "default": false,
+              "title": "Include Archived"
+            },
+            "description": "Include archived channels"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum number of channels to return",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Maximum number of channels to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of accessible channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SlackChannel"
+                  },
+                  "title": "Response List Channels"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-gram": {
+          "name": "list_slack_channels",
+          "summary": "List all accessible Slack channels",
+          "description": "<context>\n                This tool provides a comprehensive list of Slack channels that the bot can access.\n                Includes channel names, IDs, member counts, and topics. Use this to discover\n                available channels before searching or retrieving messages.\n                </context>\n\n                <prerequisites>\n                - The bot will only see public channels and private channels it's a member of\n                - To access private channels, the bot must be explicitly added to them\n                - Channel information depends on bot permissions and workspace settings\n                </prerequisites>",
+          "responseFilterType": "jq"
+        }
+      }
+    },
+    "/channels/{channel_id}/messages": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Get channel messages",
+        "description": "Retrieve messages from a specific channel with optional date range filtering \n    and pagination support. Requires a valid Slack bot token with channels:history \n    scope and access to the specified channel.",
+        "operationId": "get_channel_messages",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Channel ID to retrieve messages from",
+              "title": "Channel Id"
+            },
+            "description": "Channel ID to retrieve messages from"
+          },
+          {
+            "name": "latest",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Latest message timestamp to include",
+              "title": "Latest"
+            },
+            "description": "Latest message timestamp to include"
+          },
+          {
+            "name": "oldest",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Oldest message timestamp to include",
+              "title": "Oldest"
+            },
+            "description": "Oldest message timestamp to include"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum number of messages to return",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Maximum number of messages to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of channel messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SlackMessage"
+                  },
+                  "title": "Response Get Channel Messages"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed"
+          },
+          "403": {
+            "description": "Access denied to channel"
+          },
+          "404": {
+            "description": "Channel not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-gram": {
+          "name": "get_channel_messages",
+          "summary": "Retrieve messages from a specific channel",
+          "description": "<context>\n                This tool fetches messages from a particular Slack channel, with support\n                for date range filtering and pagination. Ideal for getting recent channel\n                activity or messages from specific time periods.\n                </context>\n\n                <prerequisites>\n                - You need the channel ID (starts with C) not the channel name\n                - Use the list_channels tool first if you only have the channel name\n                - Ensure the bot is a member of private channels to access their messages\n                </prerequisites>",
+          "responseFilterType": "jq"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MessageSearchResponse": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/SlackMessage"
+            },
+            "type": "array",
+            "title": "Messages",
+            "description": "List of matching messages"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total number of results"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Whether more results are available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages",
+          "total",
+          "has_more"
+        ],
+        "title": "MessageSearchResponse",
+        "description": "Response model for message search results"
+      },
+      "SlackChannel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Channel ID"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Channel name"
+          },
+          "is_private": {
+            "type": "boolean",
+            "title": "Is Private",
+            "description": "Whether channel is private"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "title": "Is Archived",
+            "description": "Whether channel is archived"
+          },
+          "member_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Count",
+            "description": "Number of members"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic",
+            "description": "Channel topic"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose",
+            "description": "Channel purpose"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_private",
+          "is_archived"
+        ],
+        "title": "SlackChannel",
+        "description": "Model representing a Slack channel"
+      },
+      "SlackMessage": {
+        "properties": {
+          "ts": {
+            "type": "string",
+            "title": "Ts",
+            "description": "Message timestamp"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Message text content"
+          },
+          "user": {
+            "type": "string",
+            "title": "User",
+            "description": "User ID who sent the message"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel",
+            "description": "Channel ID where message was sent"
+          },
+          "thread_ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Ts",
+            "description": "Thread timestamp if message is part of a thread"
+          },
+          "reply_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply Count",
+            "description": "Number of replies in thread"
+          },
+          "reactions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reactions",
+            "description": "Message reactions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ts",
+          "text",
+          "user",
+          "channel"
+        ],
+        "title": "SlackMessage",
+        "description": "Model representing a Slack message"
+      },
+      "SlackUser": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "User ID"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Username"
+          },
+          "real_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real Name",
+            "description": "Real name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "Email address"
+          },
+          "is_bot": {
+            "type": "boolean",
+            "title": "Is Bot",
+            "description": "Whether user is a bot"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile",
+            "description": "User profile information"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_bot"
+        ],
+        "title": "SlackUser",
+        "description": "Model representing a Slack user"
+      },
+      "ThreadResponse": {
+        "properties": {
+          "parent_message": {
+            "$ref": "#/components/schemas/SlackMessage",
+            "description": "Parent message of the thread"
+          },
+          "replies": {
+            "items": {
+              "$ref": "#/components/schemas/SlackMessage"
+            },
+            "type": "array",
+            "title": "Replies",
+            "description": "Thread replies"
+          },
+          "reply_count": {
+            "type": "integer",
+            "title": "Reply Count",
+            "description": "Total number of replies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parent_message",
+          "replies",
+          "reply_count"
+        ],
+        "title": "ThreadResponse",
+        "description": "Response model for thread information"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "messages",
+      "description": "Operations for searching and retrieving Slack messages"
+    },
+    {
+      "name": "threads",
+      "description": "Operations for managing message threads"
+    },
+    {
+      "name": "users",
+      "description": "Operations for retrieving user information"
+    },
+    {
+      "name": "channels",
+      "description": "Operations for channel management and information"
+    }
+  ]
+}
